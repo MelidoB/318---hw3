@@ -1,7 +1,10 @@
 require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
-const Book = require('./models/Book');
+const cors = require('cors');
+const morgan = require('morgan');
+const rateLimit = require('express-rate-limit');
+const Book = require('./models/Book'); // Import the Book model
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -9,17 +12,40 @@ const PORT = process.env.PORT || 3000;
 // Middleware to parse JSON
 app.use(express.json());
 
+// Allow CORS for all origins
+app.use(cors());
+
+// Log requests to the console
+app.use(morgan('combined'));
+
+// Apply rate limiting to all requests
+const limiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 100 // limit each IP to 100 requests per windowMs
+});
+
+app.use(limiter);
+
 // Connect to MongoDB
 mongoose.connect(process.env.MONGODB_URI, { useNewUrlParser: true, useUnifiedTopology: true })
   .then(() => console.log('Connected to MongoDB Atlas'))
   .catch(err => console.error('Error connecting to MongoDB', err));
 
-// Root route
-app.get('/', (req, res) => {
-    res.send('Welcome to the Book API');
+// Root route - Display a welcome message and all books
+app.get('/', async (req, res) => {
+    try {
+        const books = await Book.find(); // Fetch all books from the database
+        res.json({
+            message: 'Welcome to the Book API',
+            books: books.length ? books : 'No books found' // Display books or a message if empty
+        });
+    } catch (err) {
+        res.status(500).json({ message: err.message }); // Handle errors
+    }
 });
 
 // CRUD Routes for books
+
 // Create a new book
 app.post('/books', async (req, res) => {
     try {
